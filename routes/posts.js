@@ -1,9 +1,11 @@
 const router = require('express').Router();
 const Post = require('../models/Post');
 const User = require('../models/User');
+const { verifySession } = require('./sessionVerify');
 
-router.post('/', async (req, res) => {
+router.post('/', verifySession, async (req, res) => {
     const newPost = new Post(req.body);
+    newPost.userId = req.session.user._id;
     try {
         const savedPost = await newPost.save();
         res.status(200).json(savedPost);
@@ -12,10 +14,10 @@ router.post('/', async (req, res) => {
     }
 });
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', verifySession, async (req, res) => {
     try {
         const post = await Post.findById(req.params.id);
-        if (post.userId === req.body.userId) {
+        if (post.userId === req.session.user._id) {
             await post.updateOne({ $set: req.body });
             res.status(200).json('Post updated');
         } else {
@@ -26,10 +28,10 @@ router.put('/:id', async (req, res) => {
     }
 });
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', verifySession, async (req, res) => {
     try {
         const post = await Post.findById(req.params.id);
-        if (post.userId === req.body.userId) {
+        if (post.userId === req.session.user._id) {
             await post.deleteOne();
             res.status(200).json('Post deleted');
         } else {
@@ -40,14 +42,15 @@ router.delete('/:id', async (req, res) => {
     }
 });
 
-router.put('/:id/like', async (req, res) => {
+//Like or dislike post
+router.put('/:id/like', verifySession, async (req, res) => {
     try {
         const post = await Post.findById(req.params.id);
-        if (!post.likes.includes(req.body.userId)) {
-            await post.updateOne({ $push: { likes: req.body.userId } });
+        if (!post.likes.includes(req.session.user._id)) {
+            await post.updateOne({ $push: { likes: req.session.user._id } });
             res.status(200).json('Like');
         } else {
-            await post.updateOne({ $pull: { likes: req.body.userId } });
+            await post.updateOne({ $pull: { likes: req.session.user._id } });
             req.status(200).json('Like removed');
         }
     } catch (err) {
@@ -64,9 +67,11 @@ router.get('/:id', async (req, res) => {
     }
 });
 
-router.get('/timeline/all', async (req, res) => {
+//Get all posts
+
+router.get('/timeline/all', verifySession, async (req, res) => {
     try {
-        const currentUser = await User.findById(req.body.userId);
+        const currentUser = await User.findById(req.session.user._id);
         const userPosts = await Post.find({ userId: currentUser._id });
         const friendPosts = await Promise.all(
             currentUser.following.map((friendId) => {
